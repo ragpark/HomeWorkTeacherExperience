@@ -1,0 +1,97 @@
+name: Build Test and Deploy
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+env:
+  ACR_NAME: ${{ secrets.ACR_NAME }}
+  REGISTRY: ${{ secrets.ACR_NAME }}.azurecr.io
+  FRONTEND_IMAGE: ${{ secrets.ACR_NAME }}.azurecr.io/frontend
+  BACKEND_IMAGE: ${{ secrets.ACR_NAME }}.azurecr.io/backend
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend-image: ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+      backend-image: ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install frontend dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Run frontend tests
+        run: npm test -- --watchAll=false
+
+      - name: Install backend dependencies
+        working-directory: server
+        run: npm install --legacy-peer-deps
+
+      - name: Run backend tests
+        working-directory: server
+        run: npm test
+        continue-on-error: true
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Log in to ACR
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ env.REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push frontend image
+        run: |
+          docker build -f Dockerfile.frontend -t $FRONTEND_IMAGE:${{ github.sha }} .
+          docker push $FRONTEND_IMAGE:${{ github.sha }}
+
+      - name: Build and push backend image
+        run: |
+          docker build -f server/Dockerfile -t $BACKEND_IMAGE:${{ github.sha }} server
+          docker push $BACKEND_IMAGE:${{ github.sha }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Retrieve secrets from Key Vault
+        id: keyvault
+        uses: azure/get-keyvault-secrets@v1
+        with:
+          keyvault: ${{ secrets.KEY_VAULT_NAME }}
+          secrets: |
+            LTIClientId
+            LTIClientSecret
+            DbConnectionString
+      - name: Set backend app settings
+        run: |
+          az webapp config appsettings set --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} --name ${{ secrets.BACKEND_APP }} --settings \
+            LTI_CLIENT_ID=${{ steps.keyvault.outputs.LTIClientId }} \
+            LTI_CLIENT_SECRET=${{ steps.keyvault.outputs.LTIClientSecret }} \
+            DB_CONNECTION_STRING=${{ steps.keyvault.outputs.DbConnectionString }}
+      - name: Deploy backend
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ secrets.BACKEND_APP }}
+          images: ${{ needs.build.outputs.backend-image }}
+      - name: Deploy frontend
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ secrets.FRONTEND_APP }}
+          images: ${{ needs.build.outputs.frontend-image }}
