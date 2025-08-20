@@ -1,4 +1,5 @@
 const { Provider } = require('ltijs');
+const logger = require('./logger');
 
 // Initialize LTI provider with configuration from environment variables.
 const lti = new Provider(
@@ -37,7 +38,7 @@ const lti = new Provider(
     // Deploy provider (creates necessary routes)
     await lti.deploy();
   } catch (err) {
-    console.error('Failed to initialise LTI provider', err);
+    logger.error({ err }, 'Failed to initialise LTI provider');
   }
 })();
 
