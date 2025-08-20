@@ -1,0 +1,34 @@
+name: Build and Push to ACR
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Log in to ACR
+        uses: azure/docker-login@v1
+        with:
+          login-server: hwacr.azurecr.io
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and Push Frontend
+        run: |
+          docker build -t hwacr.azurecr.io/hw-frontend:latest -f Dockerfile.frontend .
+          docker push hwacr.azurecr.io/hw-frontend:latest
+
+      - name: Build and Push Backend
+        run: |
+          docker build -t hwacr.azurecr.io/hw-backend:latest -f Dockerfile .
+          docker push hwacr.azurecr.io/hw-backend:latest
