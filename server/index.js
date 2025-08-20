@@ -3,12 +3,37 @@ const { getSqlPool } = require('./db/azureSqlClient');
 const cosmosClient = require('./db/cosmosClient');
 const { generateRecommendations } = require('./recommendation');
 const lti = require('./lti');
+const logger = require('./logger');
+const appInsights = require('applicationinsights');
+
+if (process.env.APPINSIGHTS_CONNECTION_STRING) {
+  appInsights
+    .setup(process.env.APPINSIGHTS_CONNECTION_STRING)
+    .setAutoCollectRequests(true)
+    .setAutoCollectPerformance(true)
+    .setAutoCollectExceptions(true)
+    .setAutoCollectDependencies(true)
+    .setAutoCollectConsole(true, true)
+    .setSendLiveMetrics(false)
+    .start();
+}
 
 const app = express();
 app.use(express.json());
 
 // Mount ltijs express app to handle LTI 1.3 login and launch endpoints
 app.use('/lti', lti.app);
+
+// Endpoint to receive logs from frontend
+app.post('/api/logs', (req, res) => {
+  const { level = 'info', message, stack } = req.body || {};
+  if (logger[level]) {
+    logger[level]({ message, stack });
+  } else {
+    logger.info({ message, stack });
+  }
+  res.sendStatus(204);
+});
 
 // GET /api/academic-calendar
 app.get('/api/academic-calendar', async (req, res) => {
@@ -17,7 +42,7 @@ app.get('/api/academic-calendar', async (req, res) => {
     const result = await pool.request().query('SELECT * FROM AcademicCalendar');
     res.json(result.recordset);
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ error: 'Failed to fetch academic calendar' });
   }
 });
@@ -29,7 +54,7 @@ app.get('/api/students', async (req, res) => {
     const result = await pool.request().query('SELECT * FROM Students');
     res.json(result.recordset);
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ error: 'Failed to fetch students' });
   }
 });
@@ -41,7 +66,7 @@ app.post('/api/recommendations', async (req, res) => {
     const recommendations = await generateRecommendations(ability, week, cosmosClient);
     res.json(recommendations);
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ error: 'Failed to generate recommendations' });
   }
 });
@@ -60,7 +85,7 @@ lti.app.post('/grade', async (req, res) => {
     });
     res.sendStatus(200);
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ error: 'Failed to passback grade' });
   }
 });
@@ -72,14 +97,14 @@ lti.app.get('/names', async (req, res) => {
     const members = await nrps.getMembers();
     res.json(members);
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ error: 'Failed to fetch roster' });
   }
 });
 
 const port = process.env.PORT || 3001;
 app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+  logger.info(`Server running on port ${port}`);
 });
 
 module.exports = app;

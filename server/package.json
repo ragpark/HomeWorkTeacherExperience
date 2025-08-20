@@ -15,6 +15,8 @@
     "@azure/cosmos": "^4.0.0",
     "express": "^4.18.2",
     "mssql": "^9.1.1",
-    "ltijs": "^5.7.3"
+    "ltijs": "^5.7.3",
+    "pino": "^8.15.0",
+    "applicationinsights": "^2.9.4"
   }
 }
