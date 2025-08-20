@@ -17,3 +17,27 @@ following environment variables for your LMS platform:
 
 The tool exposes login initiation and launch endpoints under `/lti/login` and `/lti/launch`.  Grade/passback and Names & Role
 services are available at `/lti/grade` and `/lti/names` respectively.
+
+## Docker
+
+Build the front-end and back-end images and start both services:
+
+```bash
+docker compose up --build
+```
+
+The back-end expects the following environment variables:
+- `AZURE_SQL_CONNECTION_STRING`
+- `COSMOS_DB_ENDPOINT`
+- `COSMOS_DB_KEY`
+
+## Azure deployment
+
+Terraform scripts under `infrastructure/` provision an Azure resource group,
+container registry, and App Services for the front-end and back-end. Set the
+required variables and run:
+
+```bash
+cd infrastructure
+./deploy.sh -auto-approve
+```

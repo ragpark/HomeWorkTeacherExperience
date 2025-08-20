@@ -1,0 +1,23 @@
+version: '3.9'
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:80"
+    environment:
+      - REACT_APP_API_URL=http://backend:3001
+    depends_on:
+      - backend
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - AZURE_SQL_CONNECTION_STRING=${AZURE_SQL_CONNECTION_STRING}
+      - COSMOS_DB_ENDPOINT=${COSMOS_DB_ENDPOINT}
+      - COSMOS_DB_KEY=${COSMOS_DB_KEY}
