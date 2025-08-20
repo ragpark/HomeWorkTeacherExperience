@@ -1,7 +1,7 @@
 # HomeWorkTeacherExperience
 Created with CodeSandbox
 
-## LTI 1.3
+## LTI 1.3.
 
 The backend is configured to act as an LTI 1.3 tool using the [`ltijs`](https://github.com/Cvmcosta/ltijs) provider.  Set the
 following environment variables for your LMS platform:
