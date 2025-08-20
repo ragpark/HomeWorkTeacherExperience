@@ -28,8 +28,16 @@ const HomeworkAssignmentInterface = () => {
   const [showStudentModal, setShowStudentModal] = useState(false);
   const [selectedStudentForModal, setSelectedStudentForModal] = useState(null);
 
+  const [students, setStudents] = useState([]);
+  const [studentsLoading, setStudentsLoading] = useState(true);
+  const [studentsError, setStudentsError] = useState(null);
+
+  const [aiRecommendations, setAiRecommendations] = useState({});
+  const [recsLoading, setRecsLoading] = useState(true);
+  const [recsError, setRecsError] = useState(null);
+
   // Academic year mapping - 78 weeks total
-  const academicYearMap = {
+  const defaultAcademicYearMap = {
     1: {
       term: "Autumn Term 1",
       topic: "Course Introduction & Medieval Law",
@@ -500,8 +508,12 @@ const HomeworkAssignmentInterface = () => {
     },
   };
 
+  const [academicYearMap, setAcademicYearMap] = useState(defaultAcademicYearMap);
+  const [calendarLoading, setCalendarLoading] = useState(true);
+  const [calendarError, setCalendarError] = useState(null);
+
   const getCurrentWeekInfo = (week) => {
-    const weekInfo = academicYearMap[week] || academicYearMap[12];
+    const weekInfo = academicYearMap[week] || {};
     return {
       week: week,
       term: weekInfo.term,
@@ -528,198 +540,64 @@ const HomeworkAssignmentInterface = () => {
     return "Course Content Focus";
   };
 
+  useEffect(() => {
+    const fetchStudents = async () => {
+      try {
+        const res = await fetch("/api/students");
+        if (!res.ok) throw new Error("Failed to fetch students");
+        const data = await res.json();
+        setStudents(data);
+      } catch (err) {
+        setStudentsError(err.message);
+      } finally {
+        setStudentsLoading(false);
+      }
+    };
+    fetchStudents();
+  }, []);
+
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      try {
+        const res = await fetch("/api/recommendations");
+        if (!res.ok) throw new Error("Failed to fetch recommendations");
+        const data = await res.json();
+        setAiRecommendations(data);
+      } catch (err) {
+        setRecsError(err.message);
+      } finally {
+        setRecsLoading(false);
+      }
+    };
+    fetchRecommendations();
+  }, []);
+
+  useEffect(() => {
+    const fetchCalendar = async () => {
+      try {
+        const res = await fetch("/api/academic-calendar");
+        if (!res.ok) throw new Error("Failed to fetch academic calendar");
+        const data = await res.json();
+        setAcademicYearMap(data);
+      } catch (err) {
+        setCalendarError(err.message);
+      } finally {
+        setCalendarLoading(false);
+      }
+    };
+    fetchCalendar();
+  }, []);
+
+  if (studentsLoading || recsLoading || calendarLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (studentsError || recsError || calendarError) {
+    return <div>Error loading data</div>;
+  }
+
   const currentWeek = getCurrentWeekInfo(selectedWeek);
 
-  // Mock student data with quartiles instead of percentages
-  const students = [
-    { id: "all", name: "All Students (28)", type: "group" },
-    {
-      id: "1",
-      name: "Emma Thompson",
-      ability: "stretch",
-      quartile: "Q4",
-      trend: "up",
-    },
-    {
-      id: "2",
-      name: "James Wilson",
-      ability: "on-track",
-      quartile: "Q3",
-      trend: "stable",
-      rationale: {
-        summary:
-          "James demonstrates solid understanding of historical concepts with consistent performance across assessments.",
-        strengths: [
-          "Consistently achieves Grade 6-7 in assessments",
-          "Strong chronological understanding and factual recall",
-          "Good source analysis skills with basic interpretation",
-          "Reliable completion of homework and classwork",
-        ],
-        areasForDevelopment: [
-          "Needs to develop more sophisticated evaluation skills",
-          "Could improve extended writing structure and argumentation",
-          "Requires support with complex source comparison tasks",
-          "Sometimes struggles with abstract historical concepts",
-        ],
-        recentPerformance: [
-          "Cold War Origins Test: Grade 6 (72%)",
-          "Source Analysis Practice: Grade 6 (68%)",
-          "Marshall Plan Essay: Grade 7 (75%)",
-          "Timeline Assessment: Grade 7 (78%)",
-        ],
-        recommendation:
-          "James is working consistently at the expected level for his ability. Continue with standard difficulty tasks while gradually introducing more challenging evaluation exercises to push towards Grade 7-8 performance.",
-      },
-    },
-    {
-      id: "3",
-      name: "Sarah Ahmed",
-      ability: "supporting",
-      quartile: "Q2",
-      trend: "up",
-    },
-    {
-      id: "4",
-      name: "Michael Chen",
-      ability: "stretch",
-      quartile: "Q4",
-      trend: "up",
-    },
-    {
-      id: "5",
-      name: "Lucy Brown",
-      ability: "on-track",
-      quartile: "Q2",
-      trend: "down",
-    },
-    {
-      id: "6",
-      name: "David Jones",
-      ability: "supporting",
-      quartile: "Q1",
-      trend: "up",
-    },
-  ];
-
-  // AI-recommended homework based on current week and ability
-  const aiRecommendations = {
-    stretch: [
-      {
-        id: "str1",
-        title:
-          "Comparative Analysis: Marshall Plan vs Soviet Economic Response",
-        description:
-          "Research and compare the Marshall Plan with Soviet economic strategies in Eastern Europe. Analyze the long-term economic and political impacts.",
-        type: "Research Project",
-        duration: "90 minutes",
-        difficulty: "Advanced",
-        skills: ["Analysis", "Comparison", "Extended Writing"],
-        dueDate: "2024-01-22",
-        resources: [
-          "Primary source pack",
-          "Economic data sheets",
-          "Online database access",
-        ],
-        assessment: "Extended essay (800-1000 words)",
-        aiReasoning:
-          "Based on high performance in source analysis and need for challenge in comparative evaluation",
-      },
-      {
-        id: "str2",
-        title: "Cold War Perspectives: Multi-Source Investigation",
-        description:
-          "Examine the Marshall Plan from American, Soviet, and European perspectives using multiple primary sources.",
-        type: "Source Analysis",
-        duration: "75 minutes",
-        difficulty: "Advanced",
-        skills: [
-          "Source Evaluation",
-          "Perspective Analysis",
-          "Historical Interpretation",
-        ],
-        dueDate: "2024-01-24",
-        resources: ["Multi-perspective source pack", "Analysis framework"],
-        assessment: "Source comparison grid + reflection",
-        aiReasoning: "Develops advanced source skills needed for top grades",
-      },
-    ],
-    "on-track": [
-      {
-        id: "ot1",
-        title: "Marshall Plan Impact Assessment",
-        description:
-          "Evaluate the effectiveness of the Marshall Plan in achieving American objectives in Europe.",
-        type: "Essay Practice",
-        duration: "60 minutes",
-        difficulty: "Standard",
-        skills: ["Evaluation", "Structured Writing", "Evidence Selection"],
-        dueDate: "2024-01-22",
-        resources: [
-          "Essay planning sheet",
-          "Key evidence summary",
-          "Success criteria",
-        ],
-        assessment: "Structured essay (600-700 words)",
-        aiReasoning:
-          "Reinforces evaluation skills and exam technique for this ability level",
-      },
-      {
-        id: "ot2",
-        title: "Cold War Timeline Construction",
-        description:
-          "Create a detailed timeline of Cold War events 1945-1949 with explanations of significance.",
-        type: "Knowledge Consolidation",
-        duration: "45 minutes",
-        difficulty: "Standard",
-        skills: ["Chronological Understanding", "Significance Assessment"],
-        dueDate: "2024-01-24",
-        resources: [
-          "Timeline template",
-          "Event cards",
-          "Significance criteria",
-        ],
-        assessment: "Annotated timeline with significance ratings",
-        aiReasoning:
-          "Builds chronological understanding and consolidates recent learning",
-      },
-    ],
-    supporting: [
-      {
-        id: "sup1",
-        title: "Marshall Plan Key Facts Summary",
-        description:
-          "Complete a structured worksheet covering the main features and immediate impacts of the Marshall Plan.",
-        type: "Knowledge Building",
-        duration: "30 minutes",
-        difficulty: "Foundation",
-        skills: ["Knowledge Recall", "Comprehension", "Basic Analysis"],
-        dueDate: "2024-01-22",
-        resources: ["Guided worksheet", "Key facts sheet", "Video summary"],
-        assessment: "Completed worksheet with self-assessment",
-        aiReasoning:
-          "Builds foundational knowledge before moving to more complex tasks",
-      },
-      {
-        id: "sup2",
-        title: "Cold War Vocabulary Builder",
-        description:
-          "Learn and apply key Cold War terminology through structured activities and examples.",
-        type: "Vocabulary Development",
-        duration: "25 minutes",
-        difficulty: "Foundation",
-        skills: ["Historical Vocabulary", "Comprehension", "Application"],
-        dueDate: "2024-01-24",
-        resources: [
-          "Vocabulary cards",
-          "Definition activities",
-          "Practice exercises",
-        ],
-        assessment: "Vocabulary quiz and application exercise",
-        aiReasoning:
-          "Strengthens essential vocabulary needed for understanding complex concepts",
-      },
-    ],
-  };
 
   const getAbilityColor = (ability) => {
     switch (ability) {
