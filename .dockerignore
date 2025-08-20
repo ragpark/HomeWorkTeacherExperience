@@ -1,8 +1,6 @@
 node_modules
-build
-dist
+npm-debug.log
+.git
+.gitignore
 Dockerfile*
-server/
-infrastructure/
-*.log
-.env
+railway.*.json
