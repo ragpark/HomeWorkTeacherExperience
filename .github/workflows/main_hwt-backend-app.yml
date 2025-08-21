@@ -1,65 +1,46 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
-name: Build and deploy Node.js app to Azure Web App - hwt-backend-app
-
+name: deploy-backend-to-app-service
 on:
   push:
-    branches:
-      - main
-  workflow_dispatch:
+    branches: [ main ]
+
+env:
+  RG: hwt-rg                    # <-- change to your resource group
+  ACR_NAME: hwtacr              # <-- change to your ACR name (no domain)
+  ACR_LOGIN_SERVER: hwtacr.azurecr.io   # <-- change to your ACR login server
+  WEBAPP_NAME: hwt-backend-app  # <-- change to your backend web app name
+  IMAGE_NAME: hwt-backend       # any repo name in ACR
+  DOCKERFILE_PATH: server/Dockerfile  # backend Dockerfile path
+  CONTAINER_PORT: 3000          # update if different
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
-      contents: read #This is required for actions/checkout
-
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node.js version
-        uses: actions/setup-node@v3
-        with:
-          node-version: '22.x'
-
-      - name: npm install, build, and test
-        run: |
-          npm install
-          npm run build --if-present
-          npm run test --if-present
-
-      - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v4
-        with:
-          name: node-app
-          path: .
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
-
-    steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: node-app
-      
-      - name: Login to Azure
+      - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_5AC26339EA7C43EFB344D24537EDC445 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_6746A84E339E4BAFBF9A326A27EFFBA2 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_D975FB41E80E47F9955A9489827FAEC8 }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: 'Deploy to Azure Web App'
-        id: deploy-to-webapp
+      - name: ACR login
+        uses: azure/CLI@v2
+        with:
+          inlineScript: |
+            az acr login --name $ACR_NAME
+
+      - name: Build and push image
+        run: |
+          docker build -f $DOCKERFILE_PATH -t $ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }} .
+          docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }}
+
+      - name: Point Web App to new image
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'hwt-backend-app'
-          slot-name: 'Production'
-          package: .
-          
+          app-name: ${{ env.WEBAPP_NAME }}
+          images: ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
