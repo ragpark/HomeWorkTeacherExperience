@@ -4,23 +4,27 @@ on:
     branches: [ main ]
 
 env:
-  RG: hwt-rg                    # <-- change to your resource group
-  ACR_NAME: hwtacr              # <-- change to your ACR name (no domain)
-  ACR_LOGIN_SERVER: hwtacr.azurecr.io   # <-- change to your ACR login server
-  WEBAPP_NAME: hwt-backend-app  # <-- change to your backend web app name
-  IMAGE_NAME: hwt-backend       # any repo name in ACR
-  DOCKERFILE_PATH: server/Dockerfile  # backend Dockerfile path
-  CONTAINER_PORT: 3000          # update if different
+  RG: hwt-rg                               # <-- your resource group
+  ACR_NAME: hwtacr                         # <-- ACR name (no domain)
+  ACR_LOGIN_SERVER: hwtacr.azurecr.io      # <-- ACR login server (domain)
+  WEBAPP_NAME: hwt-backend-app             # <-- backend web app name
+  IMAGE_NAME: hwt-backend                  # repo name in ACR
+  DOCKERFILE_PATH: server/Dockerfile       # backend Dockerfile path
+  CONTAINER_PORT: 3000                     # internal app port (set WEBSITES_PORT in App Service)
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
+    # REQUIRED for OIDC:
     permissions:
       id-token: write
       contents: read
+
     steps:
       - uses: actions/checkout@v4
 
+      # ---- OIDC login (no creds JSON; no auth-type) ----
       - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
@@ -28,6 +32,8 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # Build & push to ACR using the OIDC session.
+      # The Entra app must have AcrPush on the ACR.
       - name: ACR login
         uses: azure/CLI@v2
         with:
@@ -36,10 +42,12 @@ jobs:
 
       - name: Build and push image
         run: |
-          docker build -f $DOCKERFILE_PATH -t $ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }} .
-          docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }}
+          docker build -f "$DOCKERFILE_PATH" -t "$ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }}" .
+          docker push "$ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }}"
 
-      - name: Point Web App to new image
+      # Point the Web App at the new image tag in ACR.
+      # The Web App’s system-assigned identity should have AcrPull on the ACR.
+      - name: Deploy to App Service (container image)
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.WEBAPP_NAME }}
